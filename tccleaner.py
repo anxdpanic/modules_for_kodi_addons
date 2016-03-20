@@ -63,8 +63,8 @@ class TextureCacheCleaner(object):
                     self.notification('Removing cached items ...')
                 cursor.execute('BEGIN')
                 cursor.execute('SELECT id, cachedurl FROM texture WHERE url LIKE "{0}"'.format(pattern))
-                list = cursor.fetchall()
-                for row in list:
+                rows_list = cursor.fetchall()
+                for row in rows_list:
                     thumbnail_path = xbmc.translatePath("special://thumbnails/{0}".format(row[1]))
                     cursor.execute('DELETE FROM sizes WHERE idtexture LIKE "{0}"'.format(row[0]))
                     if xbmcvfs.exists(thumbnail_path):
