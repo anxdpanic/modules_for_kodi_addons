@@ -6,8 +6,8 @@
     Super Classed xbmcswift2 ListItem()
         - Based on xbmcswift2 ListItem ( https://raw.githubusercontent.com/jbeluch/xbmcswift2/master/xbmcswift2/listitem.py )
 
-    Allows for is_folder: True/False to be set in ListItem dicts
-    Workaround to allow isPlayable == isFolder
+    Allows 'art': {} to be set in ListItem dicts - enables setting art via Listitem.setArt()
+    Allows 'is_folder': True/False to be set in ListItem dicts - enables isPlayable == isFolder
 
     usage:
         from swiftwrap import Plugin
@@ -55,12 +55,28 @@ class ListItem(SwiftListItem):
     def __init__(self, label=None, label2=None, icon=None, thumbnail=None, path=None):
         super(ListItem, self).__init__(label, label2, icon, thumbnail, path)
 
+    def set_art(self, art):
+        """
+        add Listitem.setArt()
+        :param art: dictionary - pairs of { label: value }.
+                    - Some default art values (any string possible):
+                    - thumb : string - image filename
+                    - poster : string - image filename
+                    - banner : string - image filename
+                    - fanart : string - image filename
+                    - clearart : string - image filename
+                    - clearlogo : string - image filename
+                    - landscape : string - image filename
+        """
+        self._listitem.setArt(art)
+
     @classmethod
     def from_dict(cls, label=None, label2=None, icon=None, thumbnail=None,
                   path=None, selected=None, info=None, properties=None,
                   context_menu=None, replace_context_menu=False,
-                  is_playable=None, info_type='video', stream_info=None, is_folder=None):
+                  is_playable=None, info_type='video', stream_info=None, is_folder=None, art=None):
         # add is_folder parameter and set listitem.is_folder if/when appropriate
+        # add art parameter and call set_art() if/when appropriate
         listitem = cls(label, label2, icon, thumbnail, path)
 
         if selected is not None:
@@ -87,5 +103,8 @@ class ListItem(SwiftListItem):
 
         if context_menu:
             listitem.add_context_menu_items(context_menu, replace_context_menu)
+
+        if art:
+            listitem.set_art(art)
 
         return listitem
