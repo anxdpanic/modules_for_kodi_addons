@@ -25,7 +25,6 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 import os
 import sqlite3
 import xbmc
@@ -35,8 +34,7 @@ import xbmcvfs
 
 
 class TextureCacheCleaner(object):
-
-    ICON = 'special://home/addons/%s/icon.png' % xbmcaddon.Addon().getAddonInfo('id')
+    ICON = xbmc.translatePath('special://home/addons/%s/icon.png' % xbmcaddon.Addon().getAddonInfo('id'))
     NAME = xbmcaddon.Addon().getAddonInfo('name')
     DATABASE = xbmc.translatePath('special://database/Textures13.db')
 
@@ -68,10 +66,13 @@ class TextureCacheCleaner(object):
                     thumbnail_path = xbmc.translatePath("special://thumbnails/{0}".format(row[1]))
                     cursor.execute('DELETE FROM sizes WHERE idtexture LIKE "{0}"'.format(row[0]))
                     if xbmcvfs.exists(thumbnail_path):
-                        try: xbmcvfs.delete(thumbnail_path)
+                        try:
+                            xbmcvfs.delete(thumbnail_path)
                         except:
-                            try: os.remove(thumbnail_path)
-                            except: raise OSError
+                            try:
+                                os.remove(thumbnail_path)
+                            except:
+                                raise OSError
                 cursor.execute('DELETE FROM texture WHERE url LIKE "{0}"'.format(pattern))
                 cursor.execute('COMMIT')
                 cursor.execute('VACUUM texture')
