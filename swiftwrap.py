@@ -37,7 +37,7 @@ from xbmcswift2.plugin import Plugin as swiftPlugin
 from xbmcswift2.listitem import ListItem as swiftListItem
 
 
-class Plugin(plugin.Plugin):
+class Plugin(swiftPlugin):
     def __init__(self, name=None, addon_id=None, filepath=None, info_type=None):
         super(Plugin, self).__init__(name, addon_id, filepath, info_type)
 
@@ -52,7 +52,7 @@ class Plugin(plugin.Plugin):
         return item
 
 
-class ListItem(listitem.ListItem):
+class ListItem(swiftListItem):
     def __init__(self, label=None, label2=None, icon=None, thumbnail=None, path=None):
         super(ListItem, self).__init__(label, label2, icon, thumbnail, path)
 
