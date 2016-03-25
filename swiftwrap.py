@@ -33,8 +33,8 @@
     along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
-from xbmcswift2 import plugin
-from xbmcswift2 import listitem
+from xbmcswift2.plugin import Plugin as swiftPlugin
+from xbmcswift2.listitem import ListItem as swiftListItem
 
 
 class Plugin(plugin.Plugin):
