@@ -61,7 +61,7 @@ import xbmcaddon
 class HttpJSONRPC:
     def __init__(self, ip_address=None, port=None, username=None, password=None):
         __addon = xbmcaddon.Addon()
-        self.ip_address = __addon.getSetting('remote-ip').strip() if ip_address is None else ip_address
+        self.ip_address = __addon.getSetting('remote-ip') if ip_address is None else ip_address
         self.port = __addon.getSetting('remote-port') if port is None else port
         self.username = __addon.getSetting('remote-username').strip() if username is None else username
         self.password = __addon.getSetting('remote-password') if password is None else password
