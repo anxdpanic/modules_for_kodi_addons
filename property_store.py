@@ -23,27 +23,28 @@ import xbmcaddon
 
 
 class PropertyStore:
-    def __init__(self):
-        self.addon = xbmcaddon.Addon()
-        self.id = self.addon.getAddonInfo('id')
+    def __init__(self, addon_id=None):
+        self.addon_id = addon_id
+        if self.addon_id is None:
+            self.addon_id = xbmcaddon.Addon().getAddonInfo('id')
         self.window = xbmcgui.Window(10000)
 
     def __enter__(self):
         return self
 
     def get(self, key):
-        if self.id not in key:
-            key = '%s-%s' % (self.id, key)
+        if self.addon_id not in key:
+            key = '%s-%s' % (self.addon_id, key)
         value = self.window.getProperty(key)
         value = self.__coerce_bool(value)
-        xbmc.log('%s: PropertyStore returned value |%s| type |%s| for key |%s|' % (self.id, str(value), type(value), key), xbmc.LOGDEBUG)
+        xbmc.log('%s: PropertyStore returned value |%s| type |%s| for key |%s|' % (self.addon_id, str(value), type(value), key), xbmc.LOGDEBUG)
         return value
 
     def set(self, key, value):
-        if self.id not in key:
-            key = '%s-%s' % (self.id, key)
+        if self.addon_id not in key:
+            key = '%s-%s' % (self.addon_id, key)
         value = self.__coerce_bool(value, to_string=True)
-        xbmc.log('%s: PropertyStore setting key |%s| to value |%s|' % (self.id, key, value), xbmc.LOGDEBUG)
+        xbmc.log('%s: PropertyStore setting key |%s| to value |%s|' % (self.addon_id, key, value), xbmc.LOGDEBUG)
         self.window.setProperty(key, value)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
