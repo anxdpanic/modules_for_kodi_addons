@@ -26,6 +26,8 @@
         - unrecognized headers
         - msgctxt missing #
         - duplicate string ids
+        - valid file header
+        - out of bounds strings ids (30000-32999)  # this error will block addition of new strings
         - out of sync last string ids  # this error will block addition of new strings
 
     Usage:
@@ -40,7 +42,6 @@
         --- end new_strings.txt ---
         Run this script again to add those strings
 '''
-
 
 import os
 import re
@@ -95,21 +96,34 @@ def check_for_errors(_po_files, last_string_id):
                                       '"content-type:', '"content-transfer-encoding:', '"language:', '"plural-forms:',
                                       '"x-generator:')
 
-    _is_oos = False
+    blocking_error = False
     _errors = list()
+    lower_limit = 30000
+    upper_limit = 32999
 
     for pf in _po_files:
         string_ids = list()
         file_last_string_id = 29999
+        first_msgctxt = -1
+
         with open(pf, 'rb') as f:
             print('Checking |%s| for errors...' % pf)
+            header = None
             contents = f.readlines()
             for i, line in enumerate(contents):
+                if not header and first_msgctxt > -1:
+                    header = contents[:(first_msgctxt - 1)]
+                    header = ''.join(header)
+                    valid_header = re.search('(^(?:#.+?|\s+)$\s*)*^msgid ""$\s*^msgstr ""$\s*(?:(?:#.+?|"[^"]+"|\s+)$\s*)*', header, re.MULTILINE) is not None
+                    if not valid_header:
+                        _errors.append('%s: Invalid file header' % pf)
                 line_number = str(i + 1)
                 if line.lower().startswith(comment_and_header_line_starts):
                     if line.startswith('"') and not line.rstrip().endswith('"'):
                         _errors.append('%s: Missing " in header |line: %s|' % (pf, line_number))
                 elif line.startswith('msgctxt "'):
+                    if first_msgctxt == -1:
+                        first_msgctxt = i
                     if not line.startswith('msgctxt "#'):
                         _errors.append('%s: Missing # in msgctxt |line: %s|' % (pf, line_number))
                     elif not line.rstrip().endswith('"'):
@@ -121,6 +135,9 @@ def check_for_errors(_po_files, last_string_id):
                     if match:
                         string_id = match.group('string_id')
                         string_id = int(string_id)
+                        if string_id > upper_limit or string_id < lower_limit:
+                            _errors.append('%s: String id out of bounds |%s| |bounds: 30000-32999| |line: %s|' % (pf, str(string_id), line_number))
+                            blocking_error = True
                         if string_id not in string_ids:
                             string_ids.append(string_id)
                             if string_id > file_last_string_id:
@@ -150,9 +167,9 @@ def check_for_errors(_po_files, last_string_id):
 
             if file_last_string_id != last_string_id:
                 _errors.append('%s: File out of sync. Last string id |%s| expected |%s|' % (pf, file_last_string_id, last_string_id))
-                _is_oos = True
+                blocking_error = True
 
-    return _errors, _is_oos
+    return _errors, blocking_error
 
 
 def add_lines(_po_files, lines_to_add, last_string_id):
@@ -230,13 +247,13 @@ if __name__ == "__main__":
     print('')
     print(hline())
 
-    errors, is_oos = check_for_errors(po_files, last_msgctxt_id)
+    errors, write_blocked = check_for_errors(po_files, last_msgctxt_id)
 
     if new_strings:
-        if not is_oos:
+        if not write_blocked:
             written_to_file = add_lines(po_files, new_strings, last_msgctxt_id)
-        elif is_oos and new_strings:
-            print('Write deferred. A file is out of sync, correct any out of sync errors and try again.')
+        elif write_blocked and new_strings:
+            print('Write deferred. Correct any errors and try again.')
 
     if written_to_file:
         print('')
