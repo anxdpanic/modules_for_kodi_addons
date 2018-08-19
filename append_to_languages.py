@@ -94,7 +94,6 @@ def check_for_errors(_po_files, last_string_id):
                                       '"po-revision-date:', '"last-translator:', '"language-team:', '"mime-version:',
                                       '"content-type:', '"content-transfer-encoding:', '"language:', '"plural-forms:',
                                       '"x-generator:')
-    msgctxt_exceptions = ('msgctxt "addon summary"', 'msgctxt "addon description"')
 
     _is_oos = False
     _errors = list()
@@ -111,9 +110,7 @@ def check_for_errors(_po_files, last_string_id):
                     if line.startswith('"') and not line.rstrip().endswith('"'):
                         _errors.append('%s: Missing " in header |line: %s|' % (pf, line_number))
                 elif line.startswith('msgctxt "'):
-                    if line.lower().startswith(msgctxt_exceptions):
-                        pass
-                    elif not line.startswith('msgctxt "#'):
+                    if not line.startswith('msgctxt "#'):
                         _errors.append('%s: Missing # in msgctxt |line: %s|' % (pf, line_number))
                     elif not line.rstrip().endswith('"'):
                         _errors.append('%s: Missing " in msgctxt |line: %s|' % (pf, line_number))
