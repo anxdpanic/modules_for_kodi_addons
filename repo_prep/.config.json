@@ -1,0 +1,14 @@
+{
+  "compress_addons": true,
+  "tag_unofficial_releases": false,
+  "path": {
+    "source": "",
+    "repository": "",
+    "zips": ""
+  },
+  "ignored": {
+    "addons": [],
+    "files": [],
+    "directories": []
+  }
+}
