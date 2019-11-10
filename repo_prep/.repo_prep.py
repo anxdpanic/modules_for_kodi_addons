@@ -233,11 +233,6 @@ class Compressor:
             # get length of characters of what we will use as the root path
             root_len = len(os.path.dirname(os.path.abspath(directory)))
 
-            ignored_ending = ('.pyo', '.pyc', 'template.md')
-            ignored_starting = '.'
-            ignored_files = ['README.md'] + IGNORED_FILES
-            blacklist = ['.git', '.idea'] + IGNORED_DIRECTORIES
-
             # recursive writer
             for root, _, files in os.walk(directory):
                 # subtract the source file's root from the archive root -
@@ -246,15 +241,15 @@ class Compressor:
 
                 for repo_file in files:
 
-                    if repo_file.endswith(ignored_ending):
+                    if repo_file.endswith(IGNORED_FILES_END):
                         continue
-                    if repo_file.startswith(ignored_starting):
+                    if repo_file.startswith(IGNORED_FILES_START):
                         continue
-                    if any(match for match in ignored_files if repo_file == match):
+                    if any(match for match in IGNORED_FILES if repo_file == match):
                         continue
 
                     full_path = os.path.join(root, repo_file)
-                    if any(bl in full_path for bl in blacklist):
+                    if any(bl in full_path for bl in IGNORED_DIRECTORIES):
                         continue
 
                     archive_name = os.path.join(archive_root, repo_file)
@@ -396,6 +391,8 @@ if __name__ == '__main__':
 
     IGNORED_ADDONS = list(set(CONFIG.get('ignored', {}).get('addons', [])))
     IGNORED_FILES = list(set(CONFIG.get('ignored', {}).get('files', [])))
+    IGNORED_FILES_START = tuple(set(CONFIG.get('ignored', {}).get('file_starts_with', [])))
+    IGNORED_FILES_END = tuple(set(CONFIG.get('ignored', {}).get('file_ends_with', [])))
     IGNORED_DIRECTORIES = list(set(CONFIG.get('ignored', {}).get('directories', [])))
 
     SOURCE_PATH = CONFIG.get('path', {}).get('source', '')

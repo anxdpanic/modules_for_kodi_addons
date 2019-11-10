@@ -7,8 +7,22 @@
     "zips": ""
   },
   "ignored": {
-    "addons": [],
-    "files": [],
-    "directories": []
+    "addons": [
+    ],
+    "files": [
+      "README.md"
+    ],
+    "file_starts_with": [
+      "."
+    ],
+    "file_ends_with": [
+      ".pyo",
+      ".pyc",
+      "template.md"
+    ],
+    "directories": [
+      ".git",
+      ".idea"
+    ]
   }
 }
