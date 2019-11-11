@@ -406,9 +406,19 @@ if __name__ == '__main__':
 
     print(__script__)
     print('Version: v' + str(__revision__))
-    print('License: ' + __license__)
-    print('Credits: ' + __credits__)
+    print('License:  ' + __license__)
+    print('Credits:  ' + __credits__)
     print('Homepage: ' + __homepage__)
+    print(' ')
+
+    print('Paths:')
+    print('    Source:     ' + SOURCE_PATH)
+    print('    Repository: ' + REPOSITORY_PATH)
+    print('    Zips:       ' + ZIPS_PATH)
+    print(' ')
+
+    print('Compress Add-ons:       ' + str(COMPRESS_ADDONS))
+    print('Tag Unofficial Add-ons: ' + str(TAG_UNOFFICIAL_RELEASES))
     print(' ')
 
     Compressor()
