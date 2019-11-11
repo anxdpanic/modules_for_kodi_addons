@@ -18,7 +18,7 @@ To enable the auto-compressor, set the compress_addons setting to True
 If you do this you must make sure the 'datadir zip' parameter in the addon.xml
 of your repository file is set to 'true'.
 
-Please bump __revision__ one decimal point and add your name to credits when making changes
+Please bump __revision__ one decimal point and add your name to __credits__ when making changes
 """
 
 import json
@@ -53,6 +53,9 @@ class Generator:
         self.generate_addons_files()
 
     def generate_addons_files(self):
+        """
+        Generate addons.xml and addons.xml.md5
+        """
         # addon list
         addons = os.listdir(SOURCE_PATH)
         # final addons text
@@ -115,6 +118,9 @@ class Generator:
             print('Could not find any addons, so script has done nothing.')
 
     def generate_md5_file(self):
+        """
+        Create addons.xml.md5
+        """
         try:
             # create a new md5 hash
             contents = read_file(self.addons_xml)
@@ -143,6 +149,9 @@ class Generator:
 
 
 class Compressor:
+    """
+    Create compressed addon releases
+    """
     def __init__(self):
         # variables used later on
         self.addon_name = None
@@ -159,6 +168,9 @@ class Compressor:
             self.compress_addons()
 
     def compress_addons(self):
+        """
+        Compress all addons found in SOURCE_PATH
+        """
         source_directory = os.listdir(SOURCE_PATH)
         for addon in source_directory:
             if addon in IGNORED_ADDONS:
@@ -227,8 +239,9 @@ class Compressor:
 
     @staticmethod
     def recursive_zipper(directory, zip_file):
-        # initialize zipping module
-
+        """
+        Create a zip_file of the provided addon directory
+        """
         with zipfile.ZipFile(zip_file, 'w', compression=zipfile.ZIP_DEFLATED) as zipped_file:
             # get length of characters of what we will use as the root path
             root_len = len(os.path.dirname(os.path.abspath(directory)))
@@ -256,8 +269,11 @@ class Compressor:
                     zipped_file.write(full_path, archive_name, zipfile.ZIP_DEFLATED)
 
     def create_compressed_addon_release(self):
-        # create a zip of the addon into repo root directory,
-        # tagging it with '-x.x.x' release number scraped from addon.xml
+        """
+        Create a zip of the addon into repo root directory, tagging it with '-x.x.x'
+        release number scraped from addon.xml. Also updates uncompressed info:
+        addon.xml, changelog-x.x.x.txt, and screenshots
+        """
         if TAG_UNOFFICIAL_RELEASES and self._is_unofficial():
             zip_name = self.addon_name + '-unofficial-' + self.addon_version_number + '.zip'
         else:
@@ -356,10 +372,12 @@ class Compressor:
 
 
 def is_addon_dir(addon):
-    # this function is used by both classes.
-    # very very simple and weak check that it is an addon dir.
-    # intended to be fast, not totally accurate.
-    # skip any file or .svn folder
+    """
+    This function is used by both classes.
+    Very very simple and weak check that it is an addon dir.
+    Intended to be fast, not totally accurate.
+    Skip any file or .svn folder
+    """
     if not os.path.isdir(addon) or addon == '.svn' or addon.endswith('zips') or addon == 'zips':
         return False
 
@@ -367,6 +385,9 @@ def is_addon_dir(addon):
 
 
 def read_file(filename, is_json=False):
+    """
+    python 2/3 read file
+    """
     if sys.version_info[0] >= 3:
         if is_json:
             with open(filename, 'r', encoding='utf-8') as open_file:
