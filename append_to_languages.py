@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 
-    Copyright (C) 2018 anxdpanic
+    Copyright (C) 2018-2020 anxdpanic
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,13 +20,11 @@
 
 '''
     Does basic error checking and adds new strings to Kodi add-on language files
-            
+
     Error checking tries to find:
         - missing, unescaped, or too many "
-        - unrecognized headers
         - msgctxt missing #
         - duplicate string ids
-        - valid file header
         - out of bounds strings ids (30000-32999)  # this error will block addition of new strings
         - out of sync last string ids  # this error will block addition of new strings
 
@@ -78,6 +76,7 @@ def get_last_msgctxt_id(_po_files):
         with open(pf, 'rb') as f:
             contents = f.readlines()
             for i, line in enumerate(contents):
+                line = line.decode('utf-8')
                 match = re.search('msgctxt "#(?P<string_id>[0-9]+)"', line.strip())
                 if match:
                     string_id = match.group('string_id')
@@ -91,11 +90,6 @@ def get_last_msgctxt_id(_po_files):
 
 
 def check_for_errors(_po_files, last_string_id):
-    comment_and_header_line_starts = ('#', '"project-id-version:', '"report-msgid-bugs-to:', '"pot-creation-date:',
-                                      '"po-revision-date:', '"last-translator:', '"language-team:', '"mime-version:',
-                                      '"content-type:', '"content-transfer-encoding:', '"language:', '"plural-forms:',
-                                      '"x-generator:')
-
     blocking_error = False
     _errors = list()
     lower_limit = 30000
@@ -108,19 +102,12 @@ def check_for_errors(_po_files, last_string_id):
 
         with open(pf, 'rb') as f:
             print('Checking |%s| for errors...' % pf)
-            header = None
             contents = f.readlines()
             for i, line in enumerate(contents):
-                if not header and first_msgctxt > -1:
-                    header = contents[:(first_msgctxt - 1)]
-                    header = ''.join(header)
-                    valid_header = re.search('(^(?:#.+?|\s+)$\s*)*^msgid ""$\s*^msgstr ""$\s*(?:(?:#.+?|"[^"]+"|\s+)$\s*)*', header, re.MULTILINE) is not None
-                    if not valid_header:
-                        _errors.append('%s: Invalid file header' % pf)
                 line_number = str(i + 1)
-                if line.lower().startswith(comment_and_header_line_starts):
-                    if line.startswith('"') and not line.rstrip().endswith('"'):
-                        _errors.append('%s: Missing " in header |line: %s|' % (pf, line_number))
+                line = line.decode('utf-8')
+                if line.startswith('#') and ' ' in line:
+                    pass
                 elif line.startswith('msgctxt "'):
                     if first_msgctxt == -1:
                         first_msgctxt = i
@@ -129,44 +116,54 @@ def check_for_errors(_po_files, last_string_id):
                     elif not line.rstrip().endswith('"'):
                         _errors.append('%s: Missing " in msgctxt |line: %s|' % (pf, line_number))
                     elif line.count('"') > 2:
-                        _errors.append('%s: Too many "\'s in msgctxt |line: %s|' % (pf, line_number))
+                        _errors.append('%s: Too many "\'s in msgctxt |line: %s|' %
+                                       (pf, line_number))
 
                     match = re.search('msgctxt "#(?P<string_id>[0-9]+)"', line.strip())
                     if match:
                         string_id = match.group('string_id')
                         string_id = int(string_id)
                         if string_id > upper_limit or string_id < lower_limit:
-                            _errors.append('%s: String id out of bounds |%s| |bounds: 30000-32999| |line: %s|' % (pf, str(string_id), line_number))
+                            _errors.append('%s: String id out of bounds |%s| '
+                                           '|bounds: 30000-32999| |line: %s|' %
+                                           (pf, str(string_id), line_number))
                             blocking_error = True
                         if string_id not in string_ids:
                             string_ids.append(string_id)
                             if string_id > file_last_string_id:
                                 file_last_string_id = string_id
                         else:
-                            _errors.append('%s: Duplicate string id |%s| |line: %s|' % (pf, str(string_id), line_number))
+                            _errors.append('%s: Duplicate string id |%s| |line: %s|' %
+                                           (pf, str(string_id), line_number))
                 elif line.startswith('msgid "'):
                     if not line.rstrip().endswith('"'):
                         _errors.append('%s: Missing " in msgid |line: %s|' % (pf, line_number))
                     else:
                         if line.strip().count('"') > 2:
                             if line.strip().count('\\"') != (line.strip().count('"') - 2):
-                                _errors.append('%s: Unescaped " in msgid |line: %s|' % (pf, line_number))
+                                _errors.append('%s: Unescaped " in msgid |line: %s|' %
+                                               (pf, line_number))
                 elif line.startswith('msgstr "'):
                     if not line.rstrip().endswith('"'):
-                        _errors.append('%s: Missing " in msgstr |line: %s|' % (pf, line_number))
+                        _errors.append('%s: Missing " in msgstr |line: %s|' %
+                                       (pf, line_number))
                     else:
                         if line.strip().count('"') > 2:
                             if line.strip().count('\\"') != (line.strip().count('"') - 2):
-                                _errors.append('%s: Unescaped " in msgstr |line: %s|' % (pf, line_number))
-                elif line.startswith('"') and ((line.count('"') < 2) or not line.rstrip().endswith('"')):
-                    _errors.append('%s: Unrecognized header missing " |line: %s|' % (pf, line_number))
-                elif line.startswith('"') and line.rstrip().endswith('"'):
-                    _errors.append('%s: Unrecognized header |line: %s|' % (pf, line_number))
+                                _errors.append('%s: Unescaped " in msgstr |line: %s|' %
+                                               (pf, line_number))
+                elif (line.startswith('"') and
+                      ((line.count('"') < 2) or not line.rstrip().endswith('"'))):
+                    _errors.append('%s: Unrecognized header missing " |line: %s|' %
+                                   (pf, line_number))
+                elif line.startswith('"'):
+                    pass
                 elif line.strip():
                     _errors.append('%s: Uncommented text |line: %s|' % (pf, line_number))
 
             if file_last_string_id != last_string_id:
-                _errors.append('%s: File out of sync. Last string id |%s| expected |%s|' % (pf, file_last_string_id, last_string_id))
+                _errors.append('%s: File out of sync. Last string id |%s| expected |%s|' %
+                               (pf, file_last_string_id, last_string_id))
                 blocking_error = True
 
     return _errors, blocking_error
@@ -184,22 +181,26 @@ def add_lines(_po_files, lines_to_add, last_string_id):
             last_msgstr = len(contents)
             for i, line in enumerate(contents):
                 line_number = str(i + 1)
+                line = line.decode('utf-8')
                 if line.startswith('msgstr "'):
                     last_msgstr = int(line_number)
 
         contents = contents[:last_msgstr]
 
-        match = re.search(r'^.*(?P<whitespace>\s*)$', contents[0])
+        match = re.search(r'^.*(?P<whitespace>\s*)$', contents[0].decode('utf-8'))
         if match:
             whitespace = match.group('whitespace')
+            whitespace = whitespace.encode('utf-8')
 
         for i, line in enumerate(lines_to_add):
-            print('%s: Adding |%s| with string id: |%s|' % (pf, line, str(last_string_id + (i + 1))))
+            print('%s: Adding |%s| with string id: |%s|' %
+                  (pf, line.decode('utf-8'), str(last_string_id + (i + 1))))
             if i == 0:
                 contents.append(whitespace)
-            contents.append('msgctxt "#%s"%s' % (str(last_string_id + (i + 1)), whitespace))
-            contents.append('msgid "%s"%s' % (line, whitespace))
-            contents.append('msgstr ""%s' % whitespace)
+            contents.append(b'msgctxt "#%s"%s' %
+                            (str(last_string_id + (i + 1)).encode('utf-8'), whitespace))
+            contents.append(b'msgid "%s"%s' % (line, whitespace))
+            contents.append(b'msgstr ""%s' % whitespace)
             if (i + 1) != len(lines_to_add):
                 contents.append(whitespace)
 
@@ -231,7 +232,7 @@ if __name__ == "__main__":
         print('No strings found to add.')
 
     for l in new_strings:
-        print ('\t' + l)
+        print('\t' + str(l))
 
     print('')
     print(hline())
