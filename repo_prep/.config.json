@@ -1,10 +1,16 @@
 {
   "compress_addons": true,
-  "tag_unofficial_releases": false,
   "path": {
     "source": "",
     "repository": "",
     "zips": ""
+  },
+  "tag_unofficial_releases": true,
+  "tag_python3_releases": false,
+  "python3_build_version": true,
+  "compress_only":{
+    "unofficial": true,
+    "python3": true
   },
   "ignored": {
     "addons": [

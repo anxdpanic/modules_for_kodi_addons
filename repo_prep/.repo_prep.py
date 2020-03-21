@@ -18,19 +18,20 @@ To enable the auto-compressor, set the compress_addons setting to True
 If you do this you must make sure the 'datadir zip' parameter in the addon.xml
 of your repository file is set to 'true'.
 
-Please bump __revision__ one decimal point and add your name to __credits__ when making changes
+Please bump __revision__ one decimal point and add your name to credits when making changes
 """
 
+from lxml import etree
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
-import hashlib
 import zipfile
-import re
 
 __script__ = '.repo_prep.py'
-__revision__ = 5.1
+__revision__ = '6.0a'
 __homepage__ = 'https://forum.kodi.tv/showthread.php?tid=129401'
 __credits__ = 'Unobtanium, anxdpanic'
 __license__ = 'GPL-3.0-only'
@@ -53,11 +54,8 @@ class Generator:
         self.generate_addons_files()
 
     def generate_addons_files(self):
-        """
-        Generate addons.xml and addons.xml.md5
-        """
         # addon list
-        addons = os.listdir(SOURCE_PATH)
+        addons = os.listdir(ZIPS_PATH)
         # final addons text
         addons_xml = u'<?xml version=\'1.0\' encoding=\'UTF-8\' standalone=\'yes\'?>\n<addons>\n'
 
@@ -69,6 +67,7 @@ class Generator:
             if addon in IGNORED_ADDONS:
                 continue
             try:
+                addon = os.path.join(ZIPS_PATH, addon)
                 # skip any file or .svn folder
                 if is_addon_dir(addon):
 
@@ -108,7 +107,7 @@ class Generator:
         # only generate files if we found an addon.xml
         if found_an_addon:
             # save files
-            self._save_file(self.addons_xml, addons_xml.encode('UTF-8'))
+            save_file(self.addons_xml, addons_xml.encode('UTF-8'))
             self.generate_md5_file()
 
             # notify user
@@ -118,45 +117,25 @@ class Generator:
             print('Could not find any addons, so script has done nothing.')
 
     def generate_md5_file(self):
-        """
-        Create addons.xml.md5
-        """
         try:
             # create a new md5 hash
             contents = read_file(self.addons_xml)
             md5 = hashlib.md5(contents.encode('utf-8')).hexdigest()
             # save file
-            self._save_file(self.addons_xml_md5, md5)
+            save_file(self.addons_xml_md5, md5)
 
         except Exception as error:  # pylint: disable=broad-except
             # oops
             print('An error occurred creating addons.xml.md5 file!\n%s' % error)
 
-    @staticmethod
-    def _save_file(filename_and_path, contents):
-        if isinstance(contents, bytes):
-            contents = contents.decode('utf-8')
-        try:
-            if sys.version_info[0] >= 3:
-                with open(filename_and_path, 'w', encoding='utf-8') as open_file:
-                    open_file.write(contents)
-            else:
-                with open(filename_and_path, 'w') as open_file:
-                    open_file.write(contents.encode('utf-8'))
-        except Exception as error:  # pylint: disable=broad-except
-            # oops
-            print('An error occurred saving %s file!\n%s' % (filename_and_path, error))
-
 
 class Compressor:
-    """
-    Create compressed addon releases
-    """
     def __init__(self):
         # variables used later on
         self.addon_name = None
         self.addon_path = None
         self.addon_folder_contents = None
+        self.xml_file = None
         self.addon_xml = None
         self.addon_version_number = None
         self.addon_zip_path = None
@@ -168,9 +147,6 @@ class Compressor:
             self.compress_addons()
 
     def compress_addons(self):
-        """
-        Compress all addons found in SOURCE_PATH
-        """
         source_directory = os.listdir(SOURCE_PATH)
         for addon in source_directory:
             if addon in IGNORED_ADDONS:
@@ -181,7 +157,6 @@ class Compressor:
             self.addon_path_zips = os.path.join(ZIPS_PATH, addon)
             # skip any file or .svn folder.
             if is_addon_dir(self.addon_path):
-
                 # set another variable
                 self.addon_folder_contents = os.listdir(self.addon_path)
 
@@ -198,11 +173,29 @@ class Compressor:
                     if not addon_zip_exists:
                         addon_zip_exists = self._get_zipped_addon_path()
                         if not addon_zip_exists:
-                            print('Create compressed %s%s release for [%s] v%s' % \
-                                  ('unofficial ' if self._is_unofficial() else '',
-                                   self._get_release_type(), self.addon_name,
+                            tags = ''
+                            if not PYTHON3_BUILD_VERSION and is_py3(self.addon_xml):
+                                tags += 'python3-'
+                            if is_unofficial(self.xml_file):
+                                tags += 'unofficial-'
+
+                            print('Create compressed %s%s release for [%s] v%s' %
+                                  (tags, self._get_release_type(), self.addon_name,
                                    self.addon_version_number))
                             self.create_compressed_addon_release()
+
+    def _get_zip_name(self):
+        zip_name = self.addon_name
+
+        if not PYTHON3_BUILD_VERSION and TAG_PYTHON3_RELEASES and is_py3(self.addon_xml):
+            zip_name += '-python3'
+
+        if TAG_UNOFFICIAL_RELEASES and is_unofficial(self.xml_file):
+            zip_name += '-unofficial'
+
+        zip_name += '-' + self.addon_version_number + '.zip'
+
+        return zip_name
 
     def _get_zipped_addon_path(self):
         # get name of addon zip file. returns False if not found.
@@ -210,10 +203,7 @@ class Compressor:
         if addon_xml_exists:
             self._read_version_number()
 
-        if TAG_UNOFFICIAL_RELEASES and self._is_unofficial():
-            zip_name = self.addon_name + '-unofficial-' + self.addon_version_number + '.zip'
-        else:
-            zip_name = self.addon_name + '-' + self.addon_version_number + '.zip'
+        zip_name = self._get_zip_name()
 
         if not os.path.exists(self.addon_path_zips):
             if not self.addon_path_zips.endswith('zips'):
@@ -237,11 +227,12 @@ class Compressor:
                     zip_file.extract(filename, self.addon_path_zips)
                     break
 
-    @staticmethod
-    def recursive_zipper(directory, zip_file):
-        """
-        Create a zip_file of the provided addon directory
-        """
+    def recursive_zipper(self, directory, zip_file):
+        # initialize zipping module
+        ignored_files = IGNORED_FILES
+        if is_py3(self.addon_xml):
+            ignored_files.append('changelog.txt')
+
         with zipfile.ZipFile(zip_file, 'w', compression=zipfile.ZIP_DEFLATED) as zipped_file:
             # get length of characters of what we will use as the root path
             root_len = len(os.path.dirname(os.path.abspath(directory)))
@@ -258,7 +249,7 @@ class Compressor:
                         continue
                     if repo_file.startswith(IGNORED_FILES_START):
                         continue
-                    if any(match for match in IGNORED_FILES if repo_file == match):
+                    if any(match for match in ignored_files if repo_file == match):
                         continue
 
                     full_path = os.path.join(root, repo_file)
@@ -266,18 +257,22 @@ class Compressor:
                         continue
 
                     archive_name = os.path.join(archive_root, repo_file)
-                    zipped_file.write(full_path, archive_name, zipfile.ZIP_DEFLATED)
+                    if (repo_file == 'addon.xml' and is_py3(self.addon_xml) and
+                            PYTHON3_BUILD_VERSION):
+                        archive_name = archive_name.lstrip('/').lstrip('\\')
+                        addon_xml = self.addon_xml
+                        addon_xml.set('version', self.addon_version_number)
+                        addon_xml = etree.tostring(addon_xml)
+                        zipped_file.writestr(archive_name, addon_xml, zipfile.ZIP_DEFLATED)
+                    else:
+                        archive_name = os.path.join(archive_root, repo_file)
+                        zipped_file.write(full_path, archive_name, zipfile.ZIP_DEFLATED)
 
     def create_compressed_addon_release(self):
-        """
-        Create a zip of the addon into repo root directory, tagging it with '-x.x.x'
-        release number scraped from addon.xml. Also updates uncompressed info:
-        addon.xml, changelog-x.x.x.txt, and screenshots
-        """
-        if TAG_UNOFFICIAL_RELEASES and self._is_unofficial():
-            zip_name = self.addon_name + '-unofficial-' + self.addon_version_number + '.zip'
-        else:
-            zip_name = self.addon_name + '-' + self.addon_version_number + '.zip'
+        # create a zip of the addon into repo root directory,
+        # tagging it with '-x.x.x' release number scraped from addon.xml
+
+        zip_name = self._get_zip_name()
         zip_path = os.path.join(ZIPS_PATH, zip_name)
 
         # zip full directories
@@ -288,21 +283,13 @@ class Compressor:
 
         os.rename(zip_path, os.path.join(self.addon_path_zips, zip_name))
 
+        if ((is_unofficial(self.xml_file) and UNOFFICIAL_COMPRESS_ONLY) or
+                (is_py3(self.addon_xml) and PYTHON3_COMPRESS_ONLY)):
+            return
+
         try:
             shutil.copyfile(os.path.join(self.addon_path, 'addon.xml'),
                             os.path.join(self.addon_path_zips, 'addon.xml'))
-        except (shutil.Error, IOError) as _:
-            pass
-
-        try:
-            shutil.copyfile(os.path.join(self.addon_path, 'icon.png'),
-                            os.path.join(self.addon_path_zips, 'icon.png'))
-        except (shutil.Error, IOError) as _:
-            pass
-
-        try:
-            shutil.copyfile(os.path.join(self.addon_path, 'fanart.jpg'),
-                            os.path.join(self.addon_path_zips, 'fanart.jpg'))
         except (shutil.Error, IOError) as _:
             pass
 
@@ -313,24 +300,53 @@ class Compressor:
         except (shutil.Error, IOError) as _:
             pass
 
-        screenshots = self._get_screenshots()
-        for screenshot in screenshots:
-            screenshot_path = os.path.join(self.addon_path_zips, screenshot)
+        art = self._get_artwork()
+
+        try:
+            shutil.copyfile(os.path.join(self.addon_path, art.get('icon', 'icon.png')),
+                            os.path.join(self.addon_path_zips, art.get('icon', 'icon.png')))
+        except (shutil.Error, IOError) as _:
+            pass
+
+        try:
+            shutil.copyfile(os.path.join(self.addon_path, art.get('fanart', 'fanart.jpg')),
+                            os.path.join(self.addon_path_zips, art.get('fanart', 'fanart.jpg')))
+        except (shutil.Error, IOError) as _:
+            pass
+
+        if art.get('banner'):
             try:
-                try:
-                    os.makedirs(os.path.dirname(screenshot_path))
-                except(IOError, OSError) as _:
-                    pass
-                shutil.copyfile(os.path.join(self.addon_path, screenshot), screenshot_path)
+                shutil.copyfile(os.path.join(self.addon_path, art.get('banner')),
+                                os.path.join(self.addon_path_zips, art.get('banner')))
             except (shutil.Error, IOError) as _:
                 pass
+
+        if art.get('clearlogo'):
+            try:
+                shutil.copyfile(os.path.join(self.addon_path, art.get('clearlogo')),
+                                os.path.join(self.addon_path_zips, art.get('clearlogo')))
+            except (shutil.Error, IOError) as _:
+                pass
+
+        for screenshot in art.get('screenshots', []):
+            if screenshot:
+                screenshot_path = os.path.join(self.addon_path_zips, screenshot)
+                try:
+                    try:
+                        os.makedirs(os.path.dirname(screenshot_path))
+                    except(IOError, OSError) as _:
+                        pass
+                    shutil.copyfile(os.path.join(self.addon_path, screenshot), screenshot_path)
+                except (shutil.Error, IOError) as _:
+                    pass
 
     def _read_addon_xml(self):
         # check for addon.xml and try and read it.
         addon_xml_path = os.path.join(self.addon_path, 'addon.xml')
         if os.path.exists(addon_xml_path):
             # load whole text into string
-            self.addon_xml = read_file(addon_xml_path)
+            self.xml_file = read_file(addon_xml_path)
+            self.addon_xml = etree.fromstring(self.xml_file.encode('utf-8'))
             # return True if we found and read the addon.xml
             return True
         # return False if we couldn't  find the addon.xml
@@ -338,16 +354,24 @@ class Compressor:
 
     def _read_version_number(self):
         # find the header of the addon.
-        headers = re.compile(r'<addon\s+id=(.+?)>', re.DOTALL).findall(self.addon_xml)
-        for header in headers:
-            # if this is the header for the addon, proceed
-            if self.addon_name in header:
-                # clean line of quotation characters so that it is easier to read.
-                header = re.sub('\'', '', header)
-                header = re.sub('"', '', header)
-                # scrape the version number from the line
-                version_tag_regex = re.compile(r'\s*version=(.+?)(?:\s+|$)', re.DOTALL)
-                self.addon_version_number = version_tag_regex.findall(header)[0].strip()
+        version = self.addon_xml.get('version')
+        addon_version = version
+        if is_py3(self.addon_xml) and PYTHON3_BUILD_VERSION:
+            t_version = split_version(version)
+            if 'alpha' or 'beta' in t_version[-1]:
+                t_version.insert(-1, '+matrix.1')
+            else:
+                t_version.append('+matrix.1')
+            digit = []
+            alpha = []
+            for v in t_version:
+                if v.isdigit():
+                    digit.append(v)
+                else:
+                    alpha.append(v)
+            addon_version = '.'.join(digit)
+            addon_version += ''.join(alpha)
+        self.addon_version_number = addon_version
 
     def _get_release_type(self):
 
@@ -363,21 +387,66 @@ class Compressor:
 
         return tag
 
-    def _get_screenshots(self):
-        screenshot_tag_regex = re.compile(r'<screenshot>(.+?)</screenshot>', re.DOTALL)
-        return screenshot_tag_regex.findall(self.addon_xml)
+    def _get_artwork(self):
+        art = {
+            'banner': '',
+            'clearlogo': '',
+            'fanart': 'fanart.jpg',
+            'icon': 'icon.png',
+            'screenshots': [],
+        }
 
-    def _is_unofficial(self):
-        return re.search(r'\s*<!--\s*unofficial\s*-->\s*', self.addon_xml)
+        extensions = self.addon_xml.findall('./extension')
+        for extension in extensions:
+            if extension.get('point') == 'xbmc.addon.metadata':
+
+                icon = extension.find('./assets/icon')
+                if icon is not None:
+                    art['icon'] = icon.text
+
+                fanart = extension.find('./assets/fanart')
+                if fanart is not None and fanart.get('root') is not None:
+                    art['fanart'] = fanart.text
+
+                banner = extension.find('./assets/banner')
+                if banner is not None:
+                    art['banner'] = banner.text
+
+                clearlogo = extension.find('./assets/clearlogo')
+                if clearlogo is not None:
+                    art['clearlogo'] = clearlogo.text
+
+                screenshots = extension.findall('./assets/screenshot')
+                if (screenshots is not None and
+                        not (len(screenshots) == 1 and screenshots[0].get('root') is None)):
+                    art['screenshots'] = [screenshot.text for screenshot in screenshots]
+
+                break
+
+        return art
+
+
+def is_py3(addon_xml):
+    required = addon_xml.findall('./requires/import')
+
+    xbmc_python = '0.0.0'
+    for depend in required:
+        if depend.get('addon') == 'xbmc.python':
+            xbmc_python = depend.get('version')
+            break
+
+    return loose_version(xbmc_python) >= loose_version('3.0.0')
+
+
+def is_unofficial(addon_xml):
+    return re.search(r'\s*<!--\s*unofficial\s*-->\s*', addon_xml)
 
 
 def is_addon_dir(addon):
-    """
-    This function is used by both classes.
-    Very very simple and weak check that it is an addon dir.
-    Intended to be fast, not totally accurate.
-    Skip any file or .svn folder
-    """
+    # this function is used by both classes.
+    # very very simple and weak check that it is an addon dir.
+    # intended to be fast, not totally accurate.
+    # skip any file or .svn folder
     if not os.path.isdir(addon) or addon == '.svn' or addon.endswith('zips') or addon == 'zips':
         return False
 
@@ -385,9 +454,6 @@ def is_addon_dir(addon):
 
 
 def read_file(filename, is_json=False):
-    """
-    python 2/3 read file
-    """
     if sys.version_info[0] >= 3:
         if is_json:
             with open(filename, 'r', encoding='utf-8') as open_file:
@@ -404,12 +470,51 @@ def read_file(filename, is_json=False):
                 return open_file.read().decode('utf-8')
 
 
+def save_file(filename_and_path, contents):
+    if isinstance(contents, bytes):
+        contents = contents.decode('utf-8')
+    try:
+        if sys.version_info[0] >= 3:
+            with open(filename_and_path, 'w', encoding='utf-8') as open_file:
+                open_file.write(contents)
+        else:
+            with open(filename_and_path, 'w') as open_file:
+                open_file.write(contents.encode('utf-8'))
+    except Exception as error:  # pylint: disable=broad-except
+        # oops
+        print('An error occurred saving %s file!\n%s' % (filename_and_path, error))
+
+
+def loose_version(v):
+    filled = []
+    for point in v.split('.'):
+        filled.append(point.zfill(8))
+    return tuple(filled)
+
+
+def split_version(v):
+    filled = []
+    for point in v.split('.'):
+        if '~' in point:
+            for p in point.split('~'):
+                if 'alpha' in p or 'beta' in p:
+                    p = '~' + p
+                filled.append(p)
+        else:
+            filled.append(point)
+    return filled
+
+
 if __name__ == '__main__':
     CONFIG = read_file('.config.json', is_json=True)
 
     COMPRESS_ADDONS = bool(CONFIG.get('compress_addons'))
-    TAG_UNOFFICIAL_RELEASES = bool(CONFIG.get('tag_unofficial_releases'))
 
+    TAG_UNOFFICIAL_RELEASES = bool(CONFIG.get('tag_unofficial_releases'))
+    TAG_PYTHON3_RELEASES = bool(CONFIG.get('tag_python3_releases'))
+    UNOFFICIAL_COMPRESS_ONLY = bool(CONFIG.get('compress_only', {}).get('unofficial', False))
+    PYTHON3_COMPRESS_ONLY = bool(CONFIG.get('compress_only', {}).get('python3', False))
+    PYTHON3_BUILD_VERSION = bool(CONFIG.get('python3_build_version'))
     IGNORED_ADDONS = list(set(CONFIG.get('ignored', {}).get('addons', [])))
     IGNORED_FILES = list(set(CONFIG.get('ignored', {}).get('files', [])))
     IGNORED_FILES_START = tuple(set(CONFIG.get('ignored', {}).get('file_starts_with', [])))
@@ -439,7 +544,17 @@ if __name__ == '__main__':
     print(' ')
 
     print('Compress Add-ons:       ' + str(COMPRESS_ADDONS))
-    print('Tag Unofficial Add-ons: ' + str(TAG_UNOFFICIAL_RELEASES))
+    print(' ')
+
+    print('Unofficial:')
+    print('    Tagged: ' + str(TAG_UNOFFICIAL_RELEASES))
+    print('    Compress Only: ' + str(UNOFFICIAL_COMPRESS_ONLY))
+    print(' ')
+
+    print('Python 3:')
+    print('    Tagged: ' + str(TAG_PYTHON3_RELEASES))
+    print('    Compress Only: ' + str(PYTHON3_COMPRESS_ONLY))
+    print('    Build Version (x.x.x+matrix.1): ' + str(PYTHON3_BUILD_VERSION))
     print(' ')
 
     Compressor()
