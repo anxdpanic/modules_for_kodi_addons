@@ -6,8 +6,7 @@
     "zips": ""
   },
   "tag_unofficial_releases": true,
-  "tag_python3_releases": false,
-  "python3_build_version": true,
+  "matrix_build_version": true,
   "compress_only":{
     "unofficial": true,
     "python3": true
